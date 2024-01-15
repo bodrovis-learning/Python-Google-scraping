@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "google-scraper"
+version = "0.1.0"
+description = "How to scrape Google search results data in Python easily"
+authors = ["bodrovis <bodrovis@protonmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.31"
+beautifulsoup4 = "^4.12"
+scrapingbee = "^2.0"
+black = "^23.12.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
