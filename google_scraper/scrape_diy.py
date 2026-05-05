@@ -1,51 +1,130 @@
+from dataclasses import dataclass
+from urllib.parse import parse_qs, urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
-from scrapingbee import ScrapingBeeClient
+from bs4.element import Tag
 
-text = "web scraping"
-url = "https://google.com/search?q=" + text
+GOOGLE_SEARCH_URL: str = "https://www.google.com/search"
+SEARCH_QUERY: str = "web scraping"
 
-cookies = {"CONSENT": "YES+cb.20220419-08-p0.cs+FX+111"}
+CONSENT_COOKIE: str = "YES+cb.20220419-08-p0.cs+FX+111"
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0"
-}
-
-response = requests.get(url, headers=headers, cookies=cookies)
-
-soup = BeautifulSoup(response.content, "html.parser")
-
-heading_object = soup.select("#search h3")
-
-for i, result in enumerate(heading_object):
-    if "href" in result.parent.attrs:
-        print(i + 1)
-        print(result.string)
-        print(result.parent.attrs["href"])
-        print("------")
+USER_AGENT: str = (
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) "
+    "Gecko/20100101 Firefox/118.0"
+)
 
 
-# OR
+@dataclass(frozen=True)
+class SearchResult:
+    position: int
+    title: str
+    link: str
+    
 
-# client = ScrapingBeeClient(
-#     api_key=""
-# )
+def fetch_google_html(query: str) -> str:
+    response = requests.get(
+        GOOGLE_SEARCH_URL,
+        params={
+            "q": query,
+            "hl": "en",
+            "gl": "us",
+        },
+        headers={
+            "User-Agent": USER_AGENT,
+        },
+        cookies={
+            "CONSENT": CONSENT_COOKIE,
+        },
+        timeout=10,
+    )
 
-# response = client.get(
-#     "https://www.google.com/search?q=Best+Laptops+in+Europe&tbm=shop",
-#     params={
-#         "custom_google": "true",
-#         # 'premium_proxy': 'true',
-#         # 'country_code':'lv',
-#         "block_resources": "false",
-#         "wait": "1500",  # Waiting for the content to load (1.5 seconds)
-#         "screenshot": True,
-#         # Specify that we need the full height
-#         "screenshot_full_page": True,
-#         "forward_headers": True,
-#     },
-#     cookies=cookies,
-#     headers=headers,
-# )
+    response.raise_for_status()
+    return response.text
+    
 
-# soup = BeautifulSoup(response.content, "html.parser")
+def create_soup(html: str) -> BeautifulSoup:
+    return BeautifulSoup(html, "html.parser")
+    
+
+def find_result_headings(soup: BeautifulSoup) -> list[Tag]:
+    headings = soup.select("#search h3")
+
+    return [
+        heading
+        for heading in headings
+        if isinstance(heading, Tag)
+    ]
+    
+
+def clean_google_link(raw_link: str) -> str:
+    if raw_link.startswith("/url?"):
+        parsed_url = urlparse(raw_link)
+        query_params = parse_qs(parsed_url.query)
+
+        if "q" in query_params:
+            return query_params["q"][0]
+
+    return urljoin("https://www.google.com", raw_link)
+    
+    
+def parse_search_results(soup: BeautifulSoup) -> list[SearchResult]:
+    results: list[SearchResult] = []
+    seen_links: set[str] = set()
+
+    for heading in find_result_headings(soup):
+        link_tag = heading.find_parent("a", href=True)
+
+        if not isinstance(link_tag, Tag):
+            continue
+
+        raw_link = link_tag.get("href")
+
+        if not isinstance(raw_link, str):
+            continue
+
+        title = heading.get_text(strip=True)
+        link = clean_google_link(raw_link)
+
+        if not title or not link.startswith("http"):
+            continue
+
+        if link in seen_links:
+            continue
+
+        seen_links.add(link)
+
+        results.append(
+            SearchResult(
+                position=len(results) + 1,
+                title=title,
+                link=link,
+            )
+        )
+
+    return results
+    
+
+def print_search_results(results: list[SearchResult]) -> None:
+    if not results:
+        print("No search results found.")
+        return
+
+    print("\nSearch results:")
+
+    for result in results:
+        print(f"\n{result.position}. {result.title}")
+        print(result.link)
+        
+        
+def main() -> None:
+    html = fetch_google_html(SEARCH_QUERY)
+    soup = create_soup(html)
+    results = parse_search_results(soup)
+
+    print_search_results(results)
+
+
+if __name__ == "__main__":
+    main()
