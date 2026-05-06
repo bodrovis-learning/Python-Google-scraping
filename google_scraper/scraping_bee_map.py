@@ -47,7 +47,7 @@ def format_value(value: Any) -> str:
 def print_map_results(data: dict[str, Any]) -> None:
     print("\nHere are the map results:")
 
-    map_results = data.get("maps_results", [])
+    map_results = data.get("map_results") or data.get("maps_results") or []
 
     if not map_results:
         print("No map results found.")

@@ -55,7 +55,10 @@ def find_domain_positions(
     domains: list[str],
 ) -> dict[str, int]:
     domain_positions = {domain: 0 for domain in domains}
-    monitored_domains = set(domains)
+    monitored_domains = {
+        normalize_domain(domain): domain
+        for domain in domains
+    }
 
     for result in data.get("organic_results", []):
         raw_domain = result.get("domain")
@@ -65,9 +68,10 @@ def find_domain_positions(
             continue
 
         current_domain = normalize_domain(raw_domain)
+        original_domain = monitored_domains.get(current_domain)
 
-        if current_domain in monitored_domains and domain_positions[current_domain] == 0:
-            domain_positions[current_domain] = position
+        if original_domain and domain_positions[original_domain] == 0:
+            domain_positions[original_domain] = position
 
     return domain_positions
     
